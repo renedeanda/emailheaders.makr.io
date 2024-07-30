@@ -6,126 +6,111 @@ def update_file(file_path, new_content):
         file.write(new_content)
     print(f"Updated {file_path}")
 
-dns_lookup_content = '''
-import dns from 'dns';
-import { promisify } from 'util';
+# Update Modal.js
+modal_content = '''
+import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 
-const resolveTxt = promisify(dns.resolveTxt);
+export default function Modal({ isOpen, onClose, children }) {
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
 
-export async function lookupSPF(fromDomain) {
-  try {
-    const domain = fromDomain.split('@')[1];
-    if (!domain) {
-      throw new Error('Invalid email format');
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscape);
+      document.body.style.overflow = 'hidden';
     }
-    const records = await resolveTxt(domain);
-    const spfRecord = records.find(record => record[0].startsWith('v=spf1'));
-    
-    if (spfRecord) {
-      const spfParts = spfRecord[0].split(' ');
-      const mechanisms = spfParts.slice(1).filter(part => !part.startsWith('v=spf1'));
-      
-      return {
-        status: 'found',
-        record: spfRecord[0],
-        mechanisms: mechanisms,
-        explanation: interpretSPF(mechanisms)
-      };
-    } else {
-      return {
-        status: 'not_found',
-        explanation: `No SPF record found for the domain ${domain}.`
-      };
-    }
-  } catch (error) {
-    console.error('SPF lookup error:', error);
-    if (error.code === 'ENOTFOUND') {
-      return {
-        status: 'error',
-        explanation: `Domain not found: ${fromDomain.split('@')[1]}. Please check if the domain is correct.`
-      };
-    } else if (error.code === 'ECONNREFUSED') {
-      return {
-        status: 'error',
-        explanation: 'Connection to DNS server was refused. There might be network issues.'
-      };
-    } else {
-      return {
-        status: 'error',
-        explanation: `SPF lookup failed: ${error.message}. There might be an issue with the DNS server or the domain configuration.`
-      };
-    }
-  }
-}
 
-function interpretSPF(mechanisms) {
-  let explanation = 'This SPF record:';
-  mechanisms.forEach(mech => {
-    if (mech.startsWith('include:')) {
-      explanation += `\\n- Includes the SPF record of ${mech.split(':')[1]}`;
-    } else if (mech.startsWith('a')) {
-      explanation += `\\n- Allows the domain's A record`;
-    } else if (mech.startsWith('mx')) {
-      explanation += `\\n- Allows the domain's MX records`;
-    } else if (mech.startsWith('ip4:') || mech.startsWith('ip6:')) {
-      explanation += `\\n- Allows the IP address ${mech.split(':')[1]}`;
-    } else if (mech === '-all') {
-      explanation += `\\n- Fails any other servers not listed (strict)`;
-    } else if (mech === '~all') {
-      explanation += `\\n- Softly fails any other servers not listed (lenient)`;
-    }
-  });
-  return explanation;
-}
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = '';
+    };
+  }, [isOpen, onClose]);
 
-export async function verifyDKIM(headerText) {
-  const dkimResults = [];
-  const dkimSignatureRegex = /DKIM-Signature:.*?d=([^;\\s]+).*?s=([^;\\s]+)/gs;
-  let match;
-
-  while ((match = dkimSignatureRegex.exec(headerText)) !== null) {
-    const [, domain, selector] = match;
-    try {
-      const dkimRecord = await resolveTxt(`${selector}._domainkey.${domain}`);
-      dkimResults.push({
-        selector,
-        domain,
-        result: dkimRecord ? 'pass' : 'fail',
-      });
-    } catch (error) {
-      console.error('DKIM lookup error:', error);
-      dkimResults.push({
-        selector,
-        domain,
-        result: 'lookup failed',
-      });
-    }
-  }
-
-  return dkimResults.length > 0 ? dkimResults : [{ selector: 'N/A', domain: 'N/A', result: 'No DKIM signature found' }];
+  return createPortal(
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center"
+        >
+          <motion.div
+            initial={{ y: -50, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -50, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4"
+          >
+            {children}
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body
+  );
 }
 '''
+update_file('components/Modal.js', modal_content)
 
+# Create ModalProvider.js
+modal_provider_content = '''
+import React, { createContext, useContext, useState } from 'react';
+import Modal from './Modal';
+
+const ModalContext = createContext();
+
+export function ModalProvider({ children }) {
+  const [modalContent, setModalContent] = useState(null);
+
+  const openModal = (content) => setModalContent(content);
+  const closeModal = () => setModalContent(null);
+
+  return (
+    <ModalContext.Provider value={{ openModal, closeModal }}>
+      {children}
+      <Modal isOpen={!!modalContent} onClose={closeModal}>
+        {modalContent}
+      </Modal>
+    </ModalContext.Provider>
+  );
+}
+
+export const useModal = () => useContext(ModalContext);
+'''
+update_file('components/ModalProvider.js', modal_provider_content)
+
+# Update SavedAnalyses.js
 saved_analyses_content = '''
 'use client'
 import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { getSavedAnalyses } from '../utils/localStorage'
+import { useModal } from './ModalProvider'
 
 export default function SavedAnalyses() {
   const [savedAnalyses, setSavedAnalyses] = useState([])
-  const [selectedAnalysis, setSelectedAnalysis] = useState(null)
+  const { openModal } = useModal()
 
   useEffect(() => {
     setSavedAnalyses(getSavedAnalyses())
   }, [])
 
-  const openModal = (analysis) => {
-    setSelectedAnalysis(analysis)
-  }
-
-  const closeModal = () => {
-    setSelectedAnalysis(null)
+  const handleViewAnalysis = (analysis) => {
+    openModal(
+      <div>
+        <h2 className="text-xl font-bold mb-4">Analysis Details</h2>
+        <pre className="whitespace-pre-wrap overflow-x-auto">
+          {JSON.stringify(analysis.headers, null, 2)}
+        </pre>
+      </div>
+    )
   }
 
   return (
@@ -151,7 +136,7 @@ export default function SavedAnalyses() {
                 Subject: {analysis.headers.Subject}
               </p>
               <button
-                onClick={() => openModal(analysis)}
+                onClick={() => handleViewAnalysis(analysis)}
                 className="mt-2 text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-500"
               >
                 View full analysis
@@ -160,157 +145,80 @@ export default function SavedAnalyses() {
           ))}
         </ul>
       )}
-
-      <AnimatePresence>
-        {selectedAnalysis && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
-            onClick={closeModal}
-          >
-            <motion.div
-              initial={{ y: -50, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 50, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-gray-100">
-                Full Analysis
-              </h2>
-              {Object.entries(selectedAnalysis.headers).map(([key, value]) => (
-                <div key={key} className="mb-4">
-                  <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200">{key}</h3>
-                  <p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{JSON.stringify(value, null, 2)}</p>
-                </div>
-              ))}
-              <button
-                onClick={closeModal}
-                className="mt-4 bg-primary-500 hover:bg-primary-600 text-white font-bold py-2 px-4 rounded"
-              >
-                Close
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </motion.div>
   )
 }
 '''
-
-update_file('utils/dnsLookup.js', dns_lookup_content)
 update_file('components/SavedAnalyses.js', saved_analyses_content)
 
-# Update ParsedHeaderDisplay.js to handle the improved SPF lookup results
-parsed_header_display_content = '''
-'use client'
-import { motion } from 'framer-motion'
-import { useHeaderContext } from '../context/HeaderContext'
-import HeaderExplanation from './HeaderExplanation'
-import EmailRoutingVisualization from './EmailRoutingVisualization'
-import { saveAnalysis } from '../utils/localStorage'
-import { generatePDF } from '../utils/pdfGenerator'
+# Update app/layout.js
+app_layout_content = '''
+import { Inter } from 'next/font/google'
+import { ThemeProvider } from '../context/ThemeContext'
+import { HeaderProvider } from '../context/HeaderContext'
+import { ModalProvider } from '../components/ModalProvider'
+import './globals.css'
 
-export default function ParsedHeaderDisplay() {
-  const { parsedHeaders } = useHeaderContext()
+const inter = Inter({ subsets: ['latin'] })
 
-  if (!parsedHeaders) return null
+export const metadata = {
+  title: 'EmailHeaderX | Advanced Email Header Analysis',
+  description: 'Comprehensive email header analysis tool with SPF, DKIM, and DMARC verification.',
+}
 
-  const handleSave = () => {
-    saveAnalysis(parsedHeaders)
-    alert('Analysis saved successfully!')
-  }
-
-  const handleGeneratePDF = async () => {
-    await generatePDF(parsedHeaders)
-  }
-
-  const renderHeaderValue = (key, value) => {
-    if (key === 'SPF') {
-      return (
-        <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-md">
-          <p className="font-semibold">{value.status === 'found' ? 'SPF Record Found' : 'SPF Record Not Found'}</p>
-          {value.status === 'found' && (
-            <>
-              <p className="mt-2"><span className="font-semibold">Record:</span> {value.record}</p>
-              <p className="mt-2"><span className="font-semibold">Mechanisms:</span></p>
-              <ul className="list-disc list-inside ml-4">
-                {value.mechanisms.map((mech, index) => (
-                  <li key={index}>{mech}</li>
-                ))}
-              </ul>
-            </>
-          )}
-          <p className="mt-2"><span className="font-semibold">Explanation:</span> {value.explanation}</p>
-        </div>
-      )
-    } else if (key === 'DKIM' && Array.isArray(value)) {
-      return (
-        <div>
-          {value.map((dkimResult, index) => (
-            <div key={index} className="bg-gray-100 dark:bg-gray-700 p-4 rounded-md mb-2">
-              <p><span className="font-semibold">Selector:</span> {dkimResult.selector}</p>
-              <p><span className="font-semibold">Domain:</span> {dkimResult.domain}</p>
-              <p><span className="font-semibold">Result:</span> 
-                <span className={dkimResult.result === 'pass' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                  {dkimResult.result}
-                </span>
-              </p>
-            </div>
-          ))}
-        </div>
-      )
-    } else {
-      return <p className="break-words">{JSON.stringify(value, null, 2)}</p>
-    }
-  }
-
+export default function RootLayout({ children }) {
   return (
-    <motion.div
-      className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-6"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.2 }}
-    >
-      <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-gray-100">Parsed Email Headers</h2>
-      {Object.entries(parsedHeaders).map(([key, value]) => (
-        <motion.div
-          key={key}
-          className="mb-6"
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3, delay: 0.1 }}
-        >
-          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200">{key}</h3>
-          {renderHeaderValue(key, value)}
-          <HeaderExplanation headerField={key} />
-        </motion.div>
-      ))}
-      <EmailRoutingVisualization receivedHeaders={parsedHeaders['Received']} />
-      <div className="mt-6 flex space-x-4">
-        <button
-          onClick={handleSave}
-          className="btn-primary"
-        >
-          Save Analysis
-        </button>
-        <button
-          onClick={handleGeneratePDF}
-          className="btn-primary"
-        >
-          Generate PDF Report
-        </button>
-      </div>
-    </motion.div>
+    <html lang="en">
+      <body className={inter.className}>
+        <ThemeProvider>
+          <HeaderProvider>
+            <ModalProvider>
+              {children}
+            </ModalProvider>
+          </HeaderProvider>
+        </ThemeProvider>
+      </body>
+    </html>
   )
 }
 '''
+update_file('app/layout.js', app_layout_content)
 
-update_file('components/ParsedHeaderDisplay.js', parsed_header_display_content)
+# Update app/page.js
+app_page_content = '''
+import { Suspense } from 'react'
+import Header from '../components/Header'
+import Footer from '../components/Footer'
+import EmailHeaderForm from '../components/EmailHeaderForm'
+import ParsedHeaderDisplay from '../components/ParsedHeaderDisplay'
+import SavedAnalyses from '../components/SavedAnalyses'
+import LoadingSpinner from '../components/LoadingSpinner'
 
-print("Files have been updated successfully.")
+export default function Home() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 dark:from-gray-800 dark:to-gray-900 transition-colors duration-200">
+      <Header />
+      <main className="container mx-auto px-4 py-8">
+        <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-100 mb-8">
+          Email Header Analyzer
+        </h1>
+        <Suspense fallback={<LoadingSpinner />}>
+          <EmailHeaderForm />
+        </Suspense>
+        <Suspense fallback={<LoadingSpinner />}>
+          <ParsedHeaderDisplay />
+        </Suspense>
+        <Suspense fallback={<LoadingSpinner />}>
+          <SavedAnalyses />
+        </Suspense>
+      </main>
+      <Footer />
+    </div>
+  )
+}
+'''
+update_file('app/page.js', app_page_content)
+
+print("All files have been updated successfully.")
 print("Please review the changes and test your application.")
-              
+
