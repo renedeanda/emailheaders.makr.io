@@ -2,6 +2,7 @@
 'use client'
 
 import DarkModeToggle from './DarkModeToggle'
+import Link from 'next/link'
 
 export default function Header() {
   return (
@@ -10,7 +11,7 @@ export default function Header() {
         <div className="flex justify-between items-center">
           <Link href="/" className="text-2xl font-bold text-primary-600 dark:text-primary-400">
             EmailHeaderX
-          </Link> -->
+          </Link>
           <DarkModeToggle />
         </div>
       </nav>
