@@ -21,9 +21,49 @@ export default function ParsedHeaderDisplay() {
     await generatePDF(parsedHeaders)
   }
 
+  const renderHeaderValue = (key, value) => {
+    if (key === 'SPF') {
+      return (
+        <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-md">
+          <p className="font-semibold">{value.status === 'found' ? 'SPF Record Found' : 'SPF Record Not Found'}</p>
+          {value.status === 'found' && (
+            <>
+              <p className="mt-2"><span className="font-semibold">Record:</span> {value.record}</p>
+              <p className="mt-2"><span className="font-semibold">Mechanisms:</span></p>
+              <ul className="list-disc list-inside ml-4">
+                {value.mechanisms.map((mech, index) => (
+                  <li key={index}>{mech}</li>
+                ))}
+              </ul>
+            </>
+          )}
+          <p className="mt-2"><span className="font-semibold">Explanation:</span> {value.explanation}</p>
+        </div>
+      )
+    } else if (key === 'DKIM' && Array.isArray(value)) {
+      return (
+        <div>
+          {value.map((dkimResult, index) => (
+            <div key={index} className="bg-gray-100 dark:bg-gray-700 p-4 rounded-md mb-2">
+              <p><span className="font-semibold">Selector:</span> {dkimResult.selector}</p>
+              <p><span className="font-semibold">Domain:</span> {dkimResult.domain}</p>
+              <p><span className="font-semibold">Result:</span> 
+                <span className={dkimResult.result === 'pass' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                  {dkimResult.result}
+                </span>
+              </p>
+            </div>
+          ))}
+        </div>
+      )
+    } else {
+      return <p className="break-words">{JSON.stringify(value, null, 2)}</p>
+    }
+  }
+
   return (
     <motion.div
-      className="bg-white dark:bg-gray-700 shadow-lg rounded-lg p-6"
+      className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-6 mb-8"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.2 }}
@@ -38,7 +78,7 @@ export default function ParsedHeaderDisplay() {
           transition={{ duration: 0.3, delay: 0.1 }}
         >
           <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200">{key}</h3>
-          <p className="text-gray-600 dark:text-gray-300 mb-2">{JSON.stringify(value)}</p>
+          {renderHeaderValue(key, value)}
           <HeaderExplanation headerField={key} />
         </motion.div>
       ))}

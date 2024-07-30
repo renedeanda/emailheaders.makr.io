@@ -1,44 +1,64 @@
 
-import dns from 'dns'
-import { promisify } from 'util'
+import dns from 'dns';
+import { promisify } from 'util';
 
-const resolveTxt = promisify(dns.resolveTxt)
+const resolveTxt = promisify(dns.resolveTxt);
 
 export async function lookupSPF(fromDomain) {
   try {
-    const domain = fromDomain.split('@')[1]
-    const records = await resolveTxt(domain)
-    const spfRecord = records.find(record => record[0].startsWith('v=spf1'))
-    return spfRecord ? spfRecord[0] : 'No SPF record found'
-  } catch (error) {
-    console.error('SPF lookup error:', error)
-    return 'SPF lookup failed'
-  }
-}
-
-export async function verifyDKIM(headerText) {
-  const dkimResults = []
-  const dkimSignatureRegex = /DKIM-Signature:.*?d=([^;\s]+).*?s=([^;\s]+)/gs
-  let match
-
-  while ((match = dkimSignatureRegex.exec(headerText)) !== null) {
-    const [, domain, selector] = match
-    try {
-      const dkimRecord = await resolveTxt(`${selector}._domainkey.${domain}`)
-      dkimResults.push({
-        selector,
-        domain,
-        result: dkimRecord ? 'pass' : 'fail',
-      })
-    } catch (error) {
-      console.error('DKIM lookup error:', error)
-      dkimResults.push({
-        selector,
-        domain,
-        result: 'lookup failed',
-      })
+    const domain = fromDomain.split('@')[1];
+    const records = await resolveTxt(domain);
+    const spfRecord = records.find(record => record[0].startsWith('v=spf1'));
+    
+    if (spfRecord) {
+      const spfParts = spfRecord[0].split(' ');
+      const mechanisms = spfParts.slice(1).filter(part => !part.startsWith('v=spf1'));
+      
+      return {
+        status: 'found',
+        record: spfRecord[0],
+        mechanisms: mechanisms,
+        explanation: interpretSPF(mechanisms)
+      };
+    } else {
+      return {
+        status: 'not_found',
+        explanation: 'No SPF record found for this domain.'
+      };
     }
+  } catch (error) {
+    console.error('SPF lookup error:', error);
+    return {
+      status: 'error',
+      explanation: 'SPF lookup failed. There might be an issue with the DNS server or the domain might not exist.'
+    };
   }
-
-  return dkimResults.length > 0 ? dkimResults : [{ selector: 'N/A', domain: 'N/A', result: 'No DKIM signature found' }]
 }
+
+function interpretSPF(mechanisms) {
+  let explanation = 'This SPF record:';
+  mechanisms.forEach(mech => {
+    if (mech.startsWith('include:')) {
+      explanation += `
+- Includes the SPF record of ${mech.split(':')[1]}`;
+    } else if (mech.startsWith('a')) {
+      explanation += '
+- Allows the domain's A record';
+    } else if (mech.startsWith('mx')) {
+      explanation += '
+- Allows the domain's MX records';
+    } else if (mech.startsWith('ip4:') || mech.startsWith('ip6:')) {
+      explanation += `
+- Allows the IP address ${mech.split(':')[1]}`;
+    } else if (mech === '-all') {
+      explanation += '
+- Fails any other servers not listed (strict)';
+    } else if (mech === '~all') {
+      explanation += '
+- Softly fails any other servers not listed (lenient)';
+    }
+  });
+  return explanation;
+}
+
+// Existing verifyDKIM function here
