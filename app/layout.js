@@ -2,7 +2,6 @@
 import { Inter } from 'next/font/google'
 import { ThemeProvider } from '../context/ThemeContext'
 import { HeaderProvider } from '../context/HeaderContext'
-import { ModalProvider } from '../components/ModalProvider'
 import { Analytics } from '@vercel/analytics/react';
 import Script from 'next/script';
 import './globals.css'
@@ -49,10 +48,8 @@ export default function RootLayout({ children }) {
       <body className={inter.className}>
         <ThemeProvider>
           <HeaderProvider>
-            <ModalProvider>
               {children}
               <Analytics />
-            </ModalProvider>
           </HeaderProvider>
         </ThemeProvider>
       </body>
