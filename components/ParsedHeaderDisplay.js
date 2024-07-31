@@ -12,11 +12,6 @@ export default function ParsedHeaderDisplay() {
 
   if (!parsedHeaders) return null
 
-  const handleSave = () => {
-    saveAnalysis(parsedHeaders)
-    alert('Analysis saved successfully!')
-  }
-
   const handleGeneratePDF = async () => {
     await generatePDF(parsedHeaders)
   }
@@ -47,7 +42,7 @@ export default function ParsedHeaderDisplay() {
             <div key={index} className="bg-gray-100 dark:bg-gray-700 p-4 rounded-md mb-2">
               <p><span className="font-semibold">Selector:</span> {dkimResult.selector}</p>
               <p><span className="font-semibold">Domain:</span> {dkimResult.domain}</p>
-              <p><span className="font-semibold">Result:</span> 
+              <p><span className="font-semibold">Result:</span>
                 <span className={dkimResult.result === 'pass' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
                   {dkimResult.result}
                 </span>
@@ -84,12 +79,6 @@ export default function ParsedHeaderDisplay() {
       ))}
       <EmailRoutingVisualization receivedHeaders={parsedHeaders['Received']} />
       <div className="mt-6 flex space-x-4">
-        <button
-          onClick={handleSave}
-          className="btn-primary"
-        >
-          Save Analysis
-        </button>
         <button
           onClick={handleGeneratePDF}
           className="btn-primary"

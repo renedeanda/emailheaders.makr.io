@@ -6,184 +6,6 @@ def update_file(file_path, new_content):
         file.write(new_content)
     print(f"Updated {file_path}")
 
-# Update Modal.js
-modal_content = '''
-import { useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-
-export default function Modal({ isOpen, onClose, children }) {
-  useEffect(() => {
-    const handleEscape = (event) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = '';
-    };
-  }, [isOpen, onClose]);
-
-  return createPortal(
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose}
-          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center"
-        >
-          <motion.div
-            initial={{ y: -50, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -50, opacity: 0 }}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4"
-          >
-            {children}
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>,
-    document.body
-  );
-}
-'''
-update_file('components/Modal.js', modal_content)
-
-# Create ModalProvider.js
-modal_provider_content = '''
-import React, { createContext, useContext, useState } from 'react';
-import Modal from './Modal';
-
-const ModalContext = createContext();
-
-export function ModalProvider({ children }) {
-  const [modalContent, setModalContent] = useState(null);
-
-  const openModal = (content) => setModalContent(content);
-  const closeModal = () => setModalContent(null);
-
-  return (
-    <ModalContext.Provider value={{ openModal, closeModal }}>
-      {children}
-      <Modal isOpen={!!modalContent} onClose={closeModal}>
-        {modalContent}
-      </Modal>
-    </ModalContext.Provider>
-  );
-}
-
-export const useModal = () => useContext(ModalContext);
-'''
-update_file('components/ModalProvider.js', modal_provider_content)
-
-# Update SavedAnalyses.js
-saved_analyses_content = '''
-'use client'
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import { getSavedAnalyses } from '../utils/localStorage'
-import { useModal } from './ModalProvider'
-
-export default function SavedAnalyses() {
-  const [savedAnalyses, setSavedAnalyses] = useState([])
-  const { openModal } = useModal()
-
-  useEffect(() => {
-    setSavedAnalyses(getSavedAnalyses())
-  }, [])
-
-  const handleViewAnalysis = (analysis) => {
-    openModal(
-      <div>
-        <h2 className="text-xl font-bold mb-4">Analysis Details</h2>
-        <pre className="whitespace-pre-wrap overflow-x-auto">
-          {JSON.stringify(analysis.headers, null, 2)}
-        </pre>
-      </div>
-    )
-  }
-
-  return (
-    <motion.div
-      className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-6 mt-8"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.2 }}
-    >
-      <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-gray-100">Saved Analyses</h2>
-      {savedAnalyses.length === 0 ? (
-        <p className="text-gray-600 dark:text-gray-300">No saved analyses yet.</p>
-      ) : (
-        <ul className="space-y-4">
-          {savedAnalyses.map((analysis) => (
-            <li key={analysis.id} className="bg-gray-100 dark:bg-gray-700 p-4 rounded-md">
-              <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200">
-                Analysis from {new Date(analysis.date).toLocaleString()}
-              </h3>
-              <p className="text-gray-600 dark:text-gray-300 mt-2">
-                From: {analysis.headers.From}
-                <br />
-                Subject: {analysis.headers.Subject}
-              </p>
-              <button
-                onClick={() => handleViewAnalysis(analysis)}
-                className="mt-2 text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-500"
-              >
-                View full analysis
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </motion.div>
-  )
-}
-'''
-update_file('components/SavedAnalyses.js', saved_analyses_content)
-
-# Update app/layout.js
-app_layout_content = '''
-import { Inter } from 'next/font/google'
-import { ThemeProvider } from '../context/ThemeContext'
-import { HeaderProvider } from '../context/HeaderContext'
-import { ModalProvider } from '../components/ModalProvider'
-import './globals.css'
-
-const inter = Inter({ subsets: ['latin'] })
-
-export const metadata = {
-  title: 'EmailHeaderX | Advanced Email Header Analysis',
-  description: 'Comprehensive email header analysis tool with SPF, DKIM, and DMARC verification.',
-}
-
-export default function RootLayout({ children }) {
-  return (
-    <html lang="en">
-      <body className={inter.className}>
-        <ThemeProvider>
-          <HeaderProvider>
-            <ModalProvider>
-              {children}
-            </ModalProvider>
-          </HeaderProvider>
-        </ThemeProvider>
-      </body>
-    </html>
-  )
-}
-'''
-update_file('app/layout.js', app_layout_content)
-
 # Update app/page.js
 app_page_content = '''
 import { Suspense } from 'react'
@@ -193,15 +15,34 @@ import EmailHeaderForm from '../components/EmailHeaderForm'
 import ParsedHeaderDisplay from '../components/ParsedHeaderDisplay'
 import SavedAnalyses from '../components/SavedAnalyses'
 import LoadingSpinner from '../components/LoadingSpinner'
+import PromotionBanner from '../components/PromotionBanner'
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 dark:from-gray-800 dark:to-gray-900 transition-colors duration-200">
       <Header />
+      <PromotionBanner />
       <main className="container mx-auto px-4 py-8">
         <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-100 mb-8">
-          Email Header Analyzer
+          EmailHeaderX: Advanced Email Header Analysis
         </h1>
+        
+        <div className="bg-white dark:bg-gray-700 shadow-lg rounded-lg p-6 mb-8">
+          <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-gray-100">ABOUT EMAIL HEADERS</h2>
+          <p className="text-gray-600 dark:text-gray-300">
+            EmailHeaderX is a powerful tool that makes email headers human-readable by parsing them according to RFC 822. 
+            Email headers are present on every email you receive via the Internet and provide 
+            valuable diagnostic information such as routing paths, spam filter results, and authentication details. 
+            By understanding email headers, you can:
+          </p>
+          <ul className="list-disc list-inside mt-2 text-gray-600 dark:text-gray-300">
+            <li>Trace the journey of an email from sender to recipient</li>
+            <li>Verify the authenticity of emails and detect potential phishing attempts</li>
+            <li>Troubleshoot email delivery issues and delays</li>
+            <li>Gain insights into email security measures like SPF, DKIM, and DMARC</li>
+          </ul>
+        </div>
+
         <Suspense fallback={<LoadingSpinner />}>
           <EmailHeaderForm />
         </Suspense>
@@ -218,6 +59,36 @@ export default function Home() {
 }
 '''
 update_file('app/page.js', app_page_content)
+
+# Update components/Footer.js
+footer_content = '''
+export default function Footer() {
+  return (
+    <footer className="bg-gray-100 dark:bg-gray-800 mt-12">
+      <div className="container mx-auto px-6 py-4">
+        <div className="text-center text-gray-500 text-sm py-4">
+          &copy; {new Date().getFullYear()} Crafted with 🧡 + 🤖 by the <a href="https://rede.io/?utm_source=emailheaderx" className="text-amber-500 hover:underline">Rede team</a>.
+        </div>
+      </div>
+    </footer>
+  )
+}
+'''
+update_file('components/Footer.js', footer_content)
+
+# Create components/PromotionBanner.js
+promotion_banner_content = '''
+export default function PromotionBanner() {
+  return (
+    <div className="bg-primary-500 text-white py-2 text-center">
+      <a href="https://rede.io/?utm_source=emailheaderx" className="font-bold hover:underline">
+        Check out 📚 Rede.io for your daily tech newsletter!
+      </a>
+    </div>
+  )
+}
+'''
+update_file('components/PromotionBanner.js', promotion_banner_content)
 
 print("All files have been updated successfully.")
 print("Please review the changes and test your application.")
